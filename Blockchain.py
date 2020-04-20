@@ -1,8 +1,6 @@
-import hashlib
-import json
-import requests
-from time import time
 from urllib.parse import urlparse
+
+import requests
 
 
 class Blockchain(object):
@@ -24,3 +22,33 @@ class Blockchain(object):
             self.nodes.add(parsed_url.path)
         else:
             raise ValueError('Invalid URL')
+
+    def unregister_node(self, address):
+        """
+        Remove a node from the list of nodes
+        :param address: <str> Address of node. Eg. 'http://192.168.0.5:5000'
+        :return: None
+        """
+
+        parsed_url = urlparse(address)
+        if parsed_url.netloc:
+            self.nodes.remove(parsed_url.netloc)
+        elif parsed_url.path:
+            # Accepts an URL without scheme like '192.168.0.5:5000'.
+            self.nodes.remove(parsed_url.path)
+        else:
+            raise ValueError('Invalid URL')
+
+    def get_all_wallets(self):  # TODO: Fix method
+        wallets = list()
+        for node in self.nodes:
+            response = requests.get(f'http://{node}/wallet')
+            wallet = {
+                'node': node,
+                'uuid': response.json()['uuid'],
+                'pool': None,
+                'total': response.json()['total']
+            }
+            wallets.append(wallet)
+
+        return wallet

@@ -13,31 +13,20 @@ miner = Miner()
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    block = miner.mine()
+    result = miner.mine()
+
+    if type(result) is str:
+        return jsonify({
+            'message': result
+        }), 200
 
     response = {
         'message': "New Block Forged",
-        'index': block['index'],
-        'transactions': block['transactions'],
-        'proof': block['proof'],
-        'previous_hash': block['previous_hash'],
-        'timestamp': block['timestamp']
-    }
-
-    return jsonify(response), 200
-
-
-@app.route('/mine_forever', methods=['GET'])
-def mine_forever():
-    block = miner.mine()
-
-    response = {
-        'message': "New Block Forged",
-        'index': block['index'],
-        'transactions': block['transactions'],
-        'proof': block['proof'],
-        'previous_hash': block['previous_hash'],
-        'timestamp': block['timestamp']
+        'index': result['index'],
+        'transactions': result['transactions'],
+        'proof': result['proof'],
+        'previous_hash': result['previous_hash'],
+        'timestamp': result['timestamp']
     }
 
     return jsonify(response), 200
@@ -68,38 +57,48 @@ def full_chain():
     return jsonify(response), 200
 
 
-@app.route('/nodes/register', methods=['POST']) # TODO: Remove
-def register_nodes():
+@app.route('/wallet', methods=['GET'])
+def calculate_wallet():
+    total = miner.calculate_wallet()
+    response = {
+        'uuid': miner.uuid,
+        'total': total
+    }
+    return jsonify(response), 200
+
+
+@app.route('/nodes/register_pool', methods=['POST'])
+def register_pool():
     values = request.get_json()
 
-    nodes = values.get('nodes')
-    if nodes is None:
-        return "Error: Please supply a valid list of nodes", 400
+    pool = values.get('address')
+    if pool is None:
+        return "Error: Please supply a valid pool", 400
 
-    for node in nodes:
-        miner.register_node(node)
+    requests.post(f'{pool}/pool/register', json={'address': f"{host_address}{port}", 'uuid': miner.uuid})
+    requests.post(f'{host_address}{blockchain_port}/nodes/unregister', json={'address': f"{host_address}{port}"})
+    miner.register_pool(pool)
 
     response = {
-        'message': 'New nodes have been added',
-        'total_nodes': list(miner.nodes),
+        'message': 'Node registered as part of a pool',
+        'pool': pool,
     }
     return jsonify(response), 201
 
 
-@app.route('/nodes/resolve', methods=['GET'])  # TODO: Remove
-def consensus():
-    replaced = miner.resolve_conflicts()
+@app.route('/nodes/unregister_pool', methods=['GET'])
+def unregister_pool():
 
-    if replaced:
-        response = {
-            'message': 'Our chain was replaced',
-            'new_chain': miner.chain
-        }
-    else:
-        response = {
-            'message': 'Our chain is authoritative',
-            'chain': miner.chain
-        }
+    if miner.pool is None:
+        return "Error: Miner is not registered to any pool", 400
+
+    requests.post(f'http://{miner.pool}/pool/unregister', json={'address': f"{host_address}{port}"})
+    requests.post(f'{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
+    miner.unregister_pool()
+
+    response = {
+        'message': 'Node unregistered from the pool'
+    }
     return jsonify(response), 200
 
 

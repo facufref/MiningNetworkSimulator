@@ -1,12 +1,11 @@
 from argparse import ArgumentParser
-from uuid import uuid4
 from flask import Flask, jsonify, request
 from Blockchain import Blockchain
 
 # Instantiate our Node
 app = Flask(__name__)
 
-# Instantiate the Miner
+# Instantiate the Blockchain
 blockchain = Blockchain()
 
 
@@ -28,11 +27,38 @@ def register_nodes():
     return jsonify(response), 201
 
 
+@app.route('/nodes/unregister', methods=['POST'])
+def unregister_node():
+    values = request.get_json()
+
+    node = values.get('address')
+    if node is None:
+        return "Error: Please supply a valid node", 400
+
+    blockchain.unregister_node(node)
+
+    response = {
+        'message': 'The node has been removed',
+        'total_nodes': list(blockchain.nodes),
+    }
+    return jsonify(response), 201
+
+
 @app.route('/nodes/get', methods=['GET'])
 def get_nodes():
     response = {
         'message': 'Returning existing nodes',
         'nodes': list(blockchain.nodes)
+    }
+    return jsonify(response), 200
+
+
+@app.route('/nodes/wallets', methods=['GET'])
+def get_wallets():
+    wallets = blockchain.get_all_wallets()
+    response = {
+        'message': 'Returning existing wallets',
+        'nodes': wallets
     }
     return jsonify(response), 200
 

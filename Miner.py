@@ -2,6 +2,7 @@ import hashlib
 import json
 import requests
 import threading
+import random
 from time import time
 from uuid import uuid4
 from urllib.parse import urlparse
@@ -12,10 +13,9 @@ class Miner(object):
     def __init__(self, interval=1):
         self.interval = interval
         self.uuid = str(uuid4()).replace('-', '')
-        self.wallet = 0
+        self.pool = None
         self.chain = []
         self.current_transactions = []
-        self.nodes = set()
 
         # Create the genesis block
         self.new_block(previous_hash=1, proof=100)
@@ -75,9 +75,13 @@ class Miner(object):
         last_proof = last_block['proof']
         last_hash = self.hash(last_block)
         proof = 0
+        count = 0
 
         while self.valid_proof(last_proof, proof, last_hash) is False:
-            proof += 1
+            if count > 10**7:  # After a fixed amount of iterations, go see if anyone else already has the solution.
+                return -1
+            proof = random.randint(0, 10**10)  # The idea is to have a range big enough, but it will depend on complexity
+            count += 1
 
         return proof
 
@@ -121,6 +125,7 @@ class Miner(object):
             neighbours = response.json()['nodes']
 
         new_chain = None
+        better_node = None
 
         # We're only looking for chains longer than ours
         max_length = len(self.chain)
@@ -137,20 +142,29 @@ class Miner(object):
                 if length > max_length and self.valid_chain(chain):
                     max_length = length
                     new_chain = chain
+                    better_node = node
 
         # Replace our chain if we discovered a new, valid chain longer than ours
         if new_chain:
             self.chain = new_chain
             print('The chain was replaced')
+
+            if self.pool is not None and better_node != self.pool:
+                # Alert the pool that there is a better chain around
+                if self.pool is not None:
+                    requests.post(f'http://{self.pool}/pool/update_chain', json={'sender': None, 'chain': new_chain})
             return True
         return False
 
     def mine(self):
-        # First verify that our chain is up to dat
-        self.resolve_conflicts()
+        # First verify that our chain is up to date
+        was_replaced = self.resolve_conflicts()
         # We run the proof of work algorithm to get the next proof...
         last_block = self.last_block
         proof = self.proof_of_work(last_block)
+
+        if proof == -1:
+            return 'Unable to find the block, check with the network for updates and try again'
 
         # We must receive a reward for finding the proof.
         # The sender is "0" to signify that this node has mined a new coin.
@@ -164,27 +178,40 @@ class Miner(object):
         previous_hash = self.hash(last_block)
         block = self.new_block(proof, previous_hash)
 
+        # Alert the pool about the new node so it distributes the reward
+        if self.pool is not None:
+            requests.post(f'http://{self.pool}/pool/update_chain', json={'sender': self.uuid, 'chain': self.chain})
+
         return block
 
     def mine_forever(self):
         while True:
             print(self.mine())
 
-    def register_node(self, address): # TODO This should be done automatically
-        """
-        Add a new node to the list of nodes
-        :param address: <str> Address of node. Eg. 'http://192.168.0.5:5000'
-        :return: None
-        """
+    def calculate_wallet(self):
+        total = 0
+        for block in self.chain:
+            for transaction in block['transactions']:
+                if transaction['recipient'] == self.uuid:
+                    total += transaction['amount']
+                elif transaction['sender'] == self.uuid:
+                    total += transaction['amount']
 
+        return total
+
+    def register_pool(self, address):
         parsed_url = urlparse(address)
         if parsed_url.netloc:
-            self.nodes.add(parsed_url.netloc)
+            self.pool = parsed_url.netloc
         elif parsed_url.path:
             # Accepts an URL without scheme like '192.168.0.5:5000'.
-            self.nodes.add(parsed_url.path)
+            self.pool = parsed_url.path
         else:
             raise ValueError('Invalid URL')
+
+    def unregister_pool(self):
+        self.pool = None
+
 
     @property
     def last_block(self):
@@ -211,7 +238,7 @@ class Miner(object):
         :param last_hash: <str> The hash of the Previous Block
         :return: <bool> True if correct, False if not.
         """
-        complexity = 5
+        complexity = 6
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:complexity] == "0" * complexity
