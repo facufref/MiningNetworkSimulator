@@ -60,9 +60,15 @@ def full_chain():
 @app.route('/wallet', methods=['GET'])
 def calculate_wallet():
     total = miner.calculate_wallet()
-    response = {
+    wallet = {
+        'node': f"{host_address}{port}",
         'uuid': miner.uuid,
+        'pool': miner.pool,
         'total': total
+    }
+    response = {
+        'message': 'Returning existing wallets',
+        'wallets': [wallet]
     }
     return jsonify(response), 200
 
@@ -75,8 +81,8 @@ def register_pool():
     if pool is None:
         return "Error: Please supply a valid pool", 400
 
-    requests.post(f'{pool}/pool/register', json={'address': f"{host_address}{port}", 'uuid': miner.uuid})
-    requests.post(f'{host_address}{blockchain_port}/nodes/unregister', json={'address': f"{host_address}{port}"})
+    requests.post(f'http://{pool}/pool/register', json={'address': f"{host_address}{port}", 'uuid': miner.uuid})
+    requests.post(f'http://{host_address}{blockchain_port}/nodes/unregister', json={'address': f"{host_address}{port}"})
     miner.register_pool(pool)
 
     response = {
@@ -93,7 +99,7 @@ def unregister_pool():
         return "Error: Miner is not registered to any pool", 400
 
     requests.post(f'http://{miner.pool}/pool/unregister', json={'address': f"{host_address}{port}"})
-    requests.post(f'{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
+    requests.post(f'http://{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
     miner.unregister_pool()
 
     response = {
@@ -109,6 +115,6 @@ if __name__ == '__main__':
     port = args.port
 
     #  On start, register the Miner on the blockchain
-    requests.post(f'{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
+    requests.post(f'http://{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
 
     app.run(host='0.0.0.0', port=port)

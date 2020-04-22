@@ -1,2 +1,2 @@
-host_address = 'http://localhost:'
+host_address = 'localhost:'
 blockchain_port = 5000

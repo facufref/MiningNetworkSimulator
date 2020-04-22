@@ -76,12 +76,24 @@ def update_chain():
         return "Error: Please supply a valid chain", 400
 
     if pool.update_chain(chain, sender):
-        response = {'message': f'Chain has been updated',
-                    'chain': chain}
+        message = 'Chain has been updated'
     else:
-        response = {'message': f'The chain was authoritative'}
+        message = 'The chain was authoritative'
+
+    response = {'message': message,
+                'chain': pool.chain}
 
     return jsonify(response), 201
+
+
+@app.route('/wallet', methods=['GET'])
+def get_member_wallets():
+    wallets = pool.get_all_wallets()
+    response = {
+        'message': 'Returning existing wallets',
+        'wallets': wallets
+    }
+    return jsonify(response), 200
 
 
 if __name__ == '__main__':
@@ -91,6 +103,6 @@ if __name__ == '__main__':
     port = args.port
 
     #  On start, register the Pool on the blockchain
-    requests.post(f'{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
+    requests.post(f'http://{host_address}{blockchain_port}/nodes/register', json={'nodes': [f"{host_address}{port}"]})
 
     app.run(host='0.0.0.0', port=port)

@@ -1,5 +1,6 @@
 from urllib.parse import urlparse
 from uuid import uuid4
+import requests
 
 
 class Pool(object):
@@ -64,6 +65,14 @@ class Pool(object):
                         })
             return True
         return False
+
+    def get_all_wallets(self):
+        wallets = list()
+        for node in self.members:
+            wallet = requests.get(f'http://{node["address"]}/wallet')
+            wallets.append(wallet.json()['wallets'][0])
+
+        return wallets
 
     @staticmethod
     def parse_address(address):

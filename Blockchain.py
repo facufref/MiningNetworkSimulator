@@ -39,16 +39,11 @@ class Blockchain(object):
         else:
             raise ValueError('Invalid URL')
 
-    def get_all_wallets(self):  # TODO: Fix method
+    def get_all_wallets(self):
         wallets = list()
         for node in self.nodes:
             response = requests.get(f'http://{node}/wallet')
-            wallet = {
-                'node': node,
-                'uuid': response.json()['uuid'],
-                'pool': None,
-                'total': response.json()['total']
-            }
-            wallets.append(wallet)
+            for wallet in response.json()['wallets']:
+                wallets.append(wallet)
 
-        return wallet
+        return wallets

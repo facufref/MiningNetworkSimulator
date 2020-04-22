@@ -58,7 +58,7 @@ def get_wallets():
     wallets = blockchain.get_all_wallets()
     response = {
         'message': 'Returning existing wallets',
-        'nodes': wallets
+        'wallets': wallets
     }
     return jsonify(response), 200
 

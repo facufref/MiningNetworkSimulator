@@ -18,7 +18,7 @@ class Miner(object):
         self.current_transactions = []
 
         # Create the genesis block
-        self.new_block(previous_hash=1, proof=100)
+        self.chain.append(self.new_block(previous_hash=1, proof=100))
 
         # The miner starts to mine and mines forever
         thread = threading.Thread(target=self.mine_forever, args=())
@@ -44,7 +44,6 @@ class Miner(object):
         # Reset the current list of transactions
         self.current_transactions = []
 
-        self.chain.append(block)
         return block
 
     def new_transaction(self, sender, recipient, amount):
@@ -120,7 +119,7 @@ class Miner(object):
         :return: <bool> True if our chain was replaced, False if not
         """
         neighbours = []
-        response = requests.get(f'{host_address}{blockchain_port}/nodes/get')
+        response = requests.get(f'http://{host_address}{blockchain_port}/nodes/get')
         if response.status_code == 200:
             neighbours = response.json()['nodes']
 
@@ -158,7 +157,7 @@ class Miner(object):
 
     def mine(self):
         # First verify that our chain is up to date
-        was_replaced = self.resolve_conflicts()
+        self.resolve_conflicts()
         # We run the proof of work algorithm to get the next proof...
         last_block = self.last_block
         proof = self.proof_of_work(last_block)
@@ -177,10 +176,12 @@ class Miner(object):
         # Forge the new Block by adding it to the chain
         previous_hash = self.hash(last_block)
         block = self.new_block(proof, previous_hash)
+        self.chain.append(block)
 
         # Alert the pool about the new node so it distributes the reward
         if self.pool is not None:
-            requests.post(f'http://{self.pool}/pool/update_chain', json={'sender': self.uuid, 'chain': self.chain})
+            response = requests.post(f'http://{self.pool}/pool/update_chain', json={'sender': self.uuid, 'chain': self.chain})
+            self.chain = response.json()['chain']
 
         return block
 
@@ -195,7 +196,7 @@ class Miner(object):
                 if transaction['recipient'] == self.uuid:
                     total += transaction['amount']
                 elif transaction['sender'] == self.uuid:
-                    total += transaction['amount']
+                    total -= transaction['amount']
 
         return total
 
